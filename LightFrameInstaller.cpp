@@ -31,7 +31,7 @@ int TaskProgress = 0;//d/5
 bool isUpdateFailed = false, isUpdateSuccess = false;
 bool WaitForThread;
 HANDLE hDlThread;
-LPCWSTR MirrorURL = L"https://res.iyoroy.top/lightframe/release/";
+LPCWSTR MirrorURL = L"https://res.iyoroy.top/lightframe/release";
 
 enum USER_MESSAGES {
 	UM_UPDATE_PANNEL = 0x0401
@@ -214,7 +214,7 @@ DWORD WINAPI UpdateThread(LPVOID lpParam) {
 
 	TCHAR bufferURL[128];
 	HRESULT hrDl;
-	_stprintf_s(bufferURL, L"%sLightFrame.exe?skq=%d", MirrorURL, (int)GetTickCount64());
+	_stprintf_s(bufferURL, L"%s/LightFrame.exe?skq=%d", MirrorURL, (int)GetTickCount64());
 	hrDl = URLDownloadToFile(NULL, bufferURL, L"LightFrame.ex_", 0, NULL);
 	if (hrDl != S_OK) {
 		strcpy(CurrentTask, "错误：网络问题，无法下载");
@@ -441,7 +441,7 @@ void Panel1(HWND hWnd, HDC hdc)
 	TextPreDrawA(hdc, 240, 60, 200, 24, Version, VERTEXUICOLOR_WHITE);
 	TextPreDrawEx(hdc, 40, 120, 220, 24, L"最新版本(Total Build) :", 20, 0, VERTEXUICOLOR_WHITE);
 	TextPreDrawA(hdc, 240, 120, 200, 24, NewVer, VERTEXUICOLOR_WHITE);
-	TextPreDrawA(hdc, 10, 170, 200, 190, "Installer:v0.1.0.4", RGB(100, 100, 100));
+	TextPreDrawA(hdc, 10, 170, 200, 190, "Installer:v0.1.0.5", RGB(100, 100, 100));
 	CreateRect(hWnd, hdc, 0, 0, rc.right, 40, VERTEXUICOLOR_GREENDEEPSEA);
 	PanelDrawCloseBtn(hWnd, hdc, rc.right - 40, 0, 40, 40, 12, RGB(244, 244, 244));
 	PanelDrawOutFrame(hWnd, hdc, VERTEXUICOLOR_DARKENX);
@@ -473,7 +473,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		//GetMemoryVer();
 
 		TCHAR bufferURL[64];
-		_stprintf_s(bufferURL, L"%sbuildver", MirrorURL);
+		_stprintf_s(bufferURL, L"%s/buildver?skq=%d", MirrorURL, GetTickCount64());
 
 		HRESULT ret = URLDownloadToFile(NULL, bufferURL, L"newVer", 0, NULL);
 		if (ret != S_OK) {
