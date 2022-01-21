@@ -234,7 +234,7 @@ DWORD WINAPI UpdateThread(LPVOID lpParam) {
 	hSnaphot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0); //获取进程快照
 	Process32First(hSnaphot, &pe32); //指向第一个进程
 	do {
-		if (lstrcmpi(pe32.szExeFile, _T("LightFrame.exe")) == 0) {
+		if (lstrcmpi(pe32.szExeFile, lpFileName) == 0) {
 			dProcess = pe32.th32ProcessID;
 			break;
 		}
