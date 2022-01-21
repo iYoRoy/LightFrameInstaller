@@ -24,6 +24,7 @@ WCHAR szWindowClass[MAX_LOADSTRING];			// 主窗口类名
 #define FileMapping_NAME "LightFrameInstCheck"
 LPVOID lpdata = NULL;
 LPWSTR lpVersion;
+LPCWSTR lpFileName;
 char Version[32], NewVer[32];
 char CurrentTask[32];
 int TaskProgress = 0;//d/5
@@ -53,7 +54,13 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 	UNREFERENCED_PARAMETER(lpCmdLine);
 
 	// TODO: 在此处放置代码。
-	lpVersion = lpCmdLine;
+	for (int i = 1; i < __argc; i++) {
+		if (wcsstr(__wargv[i], L"--CurrentVer")) 
+			lpVersion = __wargv[++i];
+		if (wcsstr(__wargv[i], L"--FileName")) 
+			lpFileName = __wargv[++i];
+	}
+	
 	// 初始化全局字符串
 	LoadStringW(hInstance, IDS_APP_TITLE, szTitle, MAX_LOADSTRING);
 	LoadStringW(hInstance, IDC_LIGHTFRAMEINSTALLER, szWindowClass, MAX_LOADSTRING);
@@ -244,13 +251,27 @@ DWORD WINAPI UpdateThread(LPVOID lpParam) {
 	strcpy(CurrentTask, "覆盖更新...");
 	TaskProgress = 4;
 	SwitchPanel(L"Panel2");
-	DeleteFile(L"LightFrame.exe");
-	MoveFile(L"LightFrame.ex_", L"LightFrame.exe");
+	DeleteFile(lpFileName);
+	MoveFile(L"LightFrame.ex_",lpFileName);
 
 	strcpy(CurrentTask, "启动LightFrame...");
 	TaskProgress = 5;
 	SwitchPanel(L"Panel2");
-	WinExec("LightFrame.exe", SW_SHOW);
+	STARTUPINFO si;
+	PROCESS_INFORMATION pi;
+	ZeroMemory(&si, sizeof(si));
+	si.cb = sizeof(si);
+	ZeroMemory(&pi, sizeof(pi));
+	CreateProcess(NULL,   // No module name (use command line)
+		(LPWSTR)lpFileName,        // Command line
+		NULL,           // Process handle not inheritable
+		NULL,           // Thread handle not inheritable
+		FALSE,          // Set handle inheritance to FALSE
+		0,              // No creation flags
+		NULL,           // Use parent's environment block
+		NULL,           // Use parent's starting directory 
+		&si,            // Pointer to STARTUPINFO structure
+		&pi);           // Pointer to PROCESS_INFORMATION structure
 
 	strcpy(CurrentTask, "删除缓存文件...");
 	TaskProgress = 6;
