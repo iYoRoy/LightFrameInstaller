@@ -27,7 +27,7 @@ LPWSTR lpVersion;
 char Version[32], NewVer[32];
 char CurrentTask[32];
 int TaskProgress = 0;//d/5
-bool isUpdateFailed = false;
+bool isUpdateFailed = false, isUpdateSuccess = false;
 bool WaitForThread;
 HANDLE hDlThread;
 LPCWSTR MirrorURL = L"https://res.iyoroy.top/lightframe/release/";
@@ -199,6 +199,7 @@ VertexUIInit;
 DWORD WINAPI UpdateThread(LPVOID lpParam) {
 	//FindWindow:LIGHTFRAME 标题是LightFrame
 	isUpdateFailed = false;
+	isUpdateSuccess = false;
 	WaitForThread = false;
 //	SendMessage()
 	strcpy(CurrentTask, "下载更新文件...");
@@ -251,10 +252,18 @@ DWORD WINAPI UpdateThread(LPVOID lpParam) {
 	SwitchPanel(L"Panel2");
 	WinExec("LightFrame.exe", SW_SHOW);
 
+	strcpy(CurrentTask, "删除缓存文件...");
+	TaskProgress = 6;
+	SwitchPanel(L"Panel2");
+	DeleteFile(L"newVer");
 
+	strcpy(CurrentTask, "更新完成！"); 
+	TaskProgress = 6;
+	isUpdateSuccess = true; 
+	SwitchPanel(L"Panel2"); 
 
 	return 0;
-}
+}   
 
 RUNFUN GoPage2()
 {
@@ -330,7 +339,7 @@ int LightFrameAreaEvent(HWND hWnd, LPARAM lParam)
 	if (PanelID == L"Panel2")
 	{
 		RECT rc = {};
-		if ((GetAreaPtInfo(hWnd, winrc.right - 170, winrc.bottom - 80, 150, 40, rc, lParam)) == 1)
+		if ((isUpdateFailed || isUpdateSuccess) && (GetAreaPtInfo(hWnd, winrc.right - 170, winrc.bottom - 80, 150, 40, rc, lParam)) == 1)
 		{
 			if (ClickMsg == 1)
 			{
@@ -423,11 +432,10 @@ void Panel2(HWND hWnd, HDC hdc)
 	TextPreDrawEx(hdc, 40, 60, 220, 24, L"当前任务:", 20, 0, VERTEXUICOLOR_WHITE);
 	TextPreDrawA(hdc, 180, 60, 300, 24, CurrentTask, VERTEXUICOLOR_WHITE);
 	char TargetProg[4];
-	sprintf_s(TargetProg, "%d/5", TaskProgress);
+	sprintf_s(TargetProg, "%d/6", TaskProgress);
 	TextPreDrawEx(hdc, 40, 120, 220, 24, L"进度:", 20, 0, VERTEXUICOLOR_WHITE);
 	TextPreDrawA(hdc, 180, 120, 300, 24, TargetProg, VERTEXUICOLOR_WHITE);
-	if (isUpdateFailed)DrawIcon(hdc, rc.right - 200, rc.bottom - 80, LoadIcon(NULL, IDI_ERROR));
-	CreateSimpleButton(hWnd, hdc, rc.right - 170, rc.bottom - 80, 150, 40, L"完成更新");
+	if (isUpdateFailed || isUpdateSuccess)CreateSimpleButton(hWnd, hdc, rc.right - 170, rc.bottom - 80, 150, 40, L"完成更新");
 }
 LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
