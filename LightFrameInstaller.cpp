@@ -214,6 +214,22 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 
 VertexUIInit;
 
+RUNFUN GoPage2()
+{
+	SwitchPanel(L"Panel2");
+	return 0;
+}
+RUNFUN GoPage1()
+{
+	SwitchPanel(L"Init");
+	return 0;
+}
+RUNFUN MoveWin()
+{
+	HWND h = GhWnd;
+	SendMessage(h, WM_NCLBUTTONDOWN, HTCAPTION, 0);
+	return -1;
+}
 void DoClean() {
 	DeleteFile(L"newVer");
 #ifdef _DEBUG
@@ -233,7 +249,7 @@ DWORD WINAPI WatchDog(LPVOID lpParam) {//防止UpdateThread卡死
 	TerminateThread(hUpdateThread, -1);
 	if (!UserCancel) {
 		strcpy(CurrentTask, "升级失败：WATCHDOG TIMEOUT");
-		SwitchPanel(L"Panel2");
+		GoPage2();
 	}
 	return -1;
 }
@@ -245,12 +261,13 @@ DWORD WINAPI UpdateThread(LPVOID lpParam) {
 	TaskProgress = 1;
 	TCHAR bufferURL[128];
 	HRESULT hrDl;
+//	while (1);
 	_stprintf_s(bufferURL, L"%s/LightFrame.exe?skq=%d", MirrorURL, (int)GetTickCount64());
 	hrDl = URLDownloadToFile(NULL, bufferURL, (isNewInstall ? L"LightFrame.exe" : L"LightFrame.ex_"), 0, NULL);
 	if (hrDl != S_OK) {
 		strcpy(CurrentTask, "错误：网络问题，无法下载");
 		isUpdateFailed = true;
-		SwitchPanel(L"Panel2");
+		GoPage2();
 		return -1;
 	}
 	USER_CANCEL;
@@ -258,7 +275,7 @@ DWORD WINAPI UpdateThread(LPVOID lpParam) {
 	if (!isNewInstall) {
 		strcpy(CurrentTask, "发送退出信息...");
 		TaskProgress = 2;
-		SwitchPanel(L"Panel2");
+		GoPage2();
 		HWND hWndLF = FindWindow(L"LIGHTFRAME", L"LightFrame");
 		PROCESSENTRY32  pe32;
 		HANDLE hSnaphot;
@@ -280,14 +297,14 @@ DWORD WINAPI UpdateThread(LPVOID lpParam) {
 
 		strcpy(CurrentTask, "等待LightFrame主程序退出...");
 		TaskProgress = 3;
-		SwitchPanel(L"Panel2");
+		GoPage2();
 		WaitForSingleObject(hApp, INFINITE);
 		Sleep(500);
 		USER_CANCEL;
 
 		strcpy(CurrentTask, "覆盖更新...");
 		TaskProgress = 4;
-		SwitchPanel(L"Panel2");
+		GoPage2();
 		DeleteFile(lpFileName);
 		MoveFile(L"LightFrame.ex_", lpFileName);
 		Sleep(500);
@@ -296,39 +313,23 @@ DWORD WINAPI UpdateThread(LPVOID lpParam) {
 
 	strcpy(CurrentTask, "删除缓存文件...");
 	TaskProgress = (isNewInstall ? 2 : 5);
-	SwitchPanel(L"Panel2");
+	GoPage2();
 	DoClean();
 	Sleep(500);
 	USER_CANCEL;
 
 	strcpy(CurrentTask, "启动LightFrame...");
 	TaskProgress = (isNewInstall ? 3 : 6);
-	SwitchPanel(L"Panel2");
+	GoPage2();
 	ShellExecute(NULL, L"open", lpFileName, NULL, NULL, SW_SHOWNORMAL);
 	Sleep(500);
 
 	strcpy(CurrentTask, "完成！"); 
 	TaskProgress = (isNewInstall ? 3 : 6);
 	isUpdateSuccess = true; 
-	SwitchPanel(L"Panel2"); 
+	GoPage2();
 
 	return 0;
-}   
-RUNFUN GoPage2()
-{
-	SwitchPanel(L"Panel2");
-	return 0;
-}
-RUNFUN GoPage1()
-{
-	SwitchPanel(L"Init");
-	return 0;
-}
-RUNFUN MoveWin()
-{
-	HWND h = GhWnd;
-	SendMessage(h, WM_NCLBUTTONDOWN, HTCAPTION, 0);
-	return -1;
 }
 int hState = 0;
 int LightFrameAreaEvent(HWND hWnd, LPARAM lParam)
@@ -453,7 +454,7 @@ void TextPreDrawA(HDC hdc, int x, int y, int sizex, int sizey, const char* txt, 
 		hFont = CreateFontIndirect(&lf);  // create the font
 	}
 	HFONT old = (HFONT)SelectObject(hdc, hFont);
-	DrawTextA(hdc, txt, strlen(txt), &rc, DT_SINGLELINE |  DT_VCENTER);
+	DrawTextA(hdc, txt, strlen(txt), &rc, DT_SINGLELINE | DT_VCENTER);
 	DeleteObject(hFont);
 	SelectObject(hdc, old);
 }
@@ -462,15 +463,15 @@ void MainWindow(HWND h, HDC hdc, int scale)
 	RECT rc;
 	GetClientRect(h, &rc);
 	CreateRect(h, hdc, rc.left, rc.top, (rc.right - rc.left) * scale, (rc.bottom - rc.top) * scale, RGB(42, 47, 56));
-	CreateRoundButtonEx(hdc, ((rc.right - rc.left) / 2 - 60)*scale, (rc.bottom - 80)*scale, 120*scale, 40*scale, 40*scale, L"下载新版本",18*scale, VERTEXUICOLOR_GREENSEA);
-	
+	CreateRoundButtonEx(hdc, ((rc.right - rc.left) / 2 - 60) * scale, (rc.bottom - 80) * scale, 120 * scale, 40 * scale, 40 * scale, L"下载新版本", 18 * scale, VERTEXUICOLOR_GREENSEA);
+
 }
 void Panel1(HWND hWnd, HDC hdc)
 {
 	int scale = 1;
 	RECT rc;
 	GetClientRect(hWnd, &rc);
-	CreateAA(hWnd, hdc, rc.left, rc.top, rc.right - rc.left + 6, rc.bottom - rc.top+6, MainWindow);
+	CreateAA(hWnd, hdc, rc.left, rc.top, rc.right - rc.left + 6, rc.bottom - rc.top + 6, MainWindow);
 	if (!isNewInstall) {
 		TextPreDrawEx(hdc, 40, 60, 220, 24, L"当前版本(Total Build) :", 20, 0, VERTEXUICOLOR_WHITE);
 		TextPreDrawA(hdc, 240, 60, 200, 24, Version, VERTEXUICOLOR_WHITE);
