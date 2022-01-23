@@ -14,26 +14,34 @@
 #pragma warning(disable:4996)
 #pragma comment(lib,"winmm.lib") 
 
-#define MAX_LOADSTRING 100
+#define MAX_LOADSTRING			100
+#define FileMapping_NAME		"LightFrameInstCheck"
+#define WATCHDOG_TIMEOUT		1000*10
+#define USER_CANCEL				if(UserCancel){\
+									isUpdateFailed=true;\
+									strcpy(CurrentTask,"用户取消");\
+									SwitchPanel(L"Panel2");\
+									return 1;\
+								}
 
 // 全局变量:
 HINSTANCE hInst;								// 当前实例
 WCHAR szTitle[MAX_LOADSTRING];				  // 标题栏文本
 WCHAR szWindowClass[MAX_LOADSTRING];			// 主窗口类名
 
-#define FileMapping_NAME "LightFrameInstCheck"
 LPVOID lpdata = NULL;
 LPCWSTR lpVersion, lpFileName;
 char Version[32], NewVer[32];
 char CurrentTask[32];
-int TaskProgress = 0;//d/5
+int TaskProgress = 0;
 bool isUpdateFailed = false, isUpdateSuccess = false;
 bool isNewInstall = false;
-HANDLE hDlThread;
+bool UserCancel = false;
+HANDLE hUpdateThread, hWatchDog;
 LPCWSTR MirrorURL = L"http://res.iyoroy.top/lightframe/release";
 
 enum USER_MESSAGES {
-	UM_UPDATE_PANNEL = 0x0401
+	
 };
 
 using namespace std;
@@ -206,11 +214,33 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 
 VertexUIInit;
 
+void DoClean() {
+	DeleteFile(L"newVer");
+#ifdef _DEBUG
+	HWND hWndLF = FindWindow(L"LIGHTFRAME", L"LightFrame");
+	::PostMessage(hWndLF, 0xff3, 0, 1);
+	DeleteFile(lpFileName);
+#endif
+}
+DWORD WINAPI WatchDog(LPVOID lpParam) {//防止UpdateThread卡死
+	int TaskHistory;
+	do {
+		if (isUpdateFailed || isUpdateSuccess)return 0;
+		TaskHistory = TaskProgress;
+		Sleep(WATCHDOG_TIMEOUT);
+	} while (TaskHistory != TaskProgress);
+	isUpdateFailed = true;
+	TerminateThread(hUpdateThread, -1);
+	if (!UserCancel) {
+		strcpy(CurrentTask, "升级失败：WATCHDOG TIMEOUT");
+		SwitchPanel(L"Panel2");
+	}
+	return -1;
+}
 DWORD WINAPI UpdateThread(LPVOID lpParam) {
-	//FindWindow:LIGHTFRAME 标题是LightFrame
 	isUpdateFailed = false;
 	isUpdateSuccess = false;
-//	SendMessage()
+	UserCancel = false;
 	strcpy(CurrentTask, (isNewInstall ? "下载程序本体..." : "下载更新文件..."));
 	TaskProgress = 1;
 	TCHAR bufferURL[128];
@@ -223,6 +253,7 @@ DWORD WINAPI UpdateThread(LPVOID lpParam) {
 		SwitchPanel(L"Panel2");
 		return -1;
 	}
+	USER_CANCEL;
 
 	if (!isNewInstall) {
 		strcpy(CurrentTask, "发送退出信息...");
@@ -245,12 +276,14 @@ DWORD WINAPI UpdateThread(LPVOID lpParam) {
 			PROCESS_VM_OPERATION | SYNCHRONIZE, FALSE, dProcess);
 		::PostMessage(hWndLF, 0xff3, 0, 1);
 		Sleep(500);
+		USER_CANCEL;
 
 		strcpy(CurrentTask, "等待LightFrame主程序退出...");
 		TaskProgress = 3;
 		SwitchPanel(L"Panel2");
 		WaitForSingleObject(hApp, INFINITE);
 		Sleep(500);
+		USER_CANCEL;
 
 		strcpy(CurrentTask, "覆盖更新...");
 		TaskProgress = 4;
@@ -258,22 +291,19 @@ DWORD WINAPI UpdateThread(LPVOID lpParam) {
 		DeleteFile(lpFileName);
 		MoveFile(L"LightFrame.ex_", lpFileName);
 		Sleep(500);
+		USER_CANCEL;
 	}
 
 	strcpy(CurrentTask, "删除缓存文件...");
 	TaskProgress = (isNewInstall ? 2 : 5);
 	SwitchPanel(L"Panel2");
-	DeleteFile(L"newVer");
+	DoClean();
 	Sleep(500);
+	USER_CANCEL;
 
 	strcpy(CurrentTask, "启动LightFrame...");
 	TaskProgress = (isNewInstall ? 3 : 6);
 	SwitchPanel(L"Panel2");
-	STARTUPINFO si;
-	PROCESS_INFORMATION pi;
-	ZeroMemory(&si, sizeof(si));
-	si.cb = sizeof(si);
-	ZeroMemory(&pi, sizeof(pi));
 	ShellExecute(NULL, L"open", lpFileName, NULL, NULL, SW_SHOWNORMAL);
 	Sleep(500);
 
@@ -321,7 +351,8 @@ int LightFrameAreaEvent(HWND hWnd, LPARAM lParam)
 			{
 				ClickMsg = 0;
 				GoPage2();
-				CreateThread(NULL, 2, UpdateThread, NULL, 0, 0);
+				hUpdateThread = CreateThread(NULL, 0, UpdateThread, NULL, 0, 0);
+				hWatchDog = CreateThread(NULL, 0, WatchDog, NULL, 0, 0);
 			}
 			if (hState == 0)
 			{
@@ -334,7 +365,7 @@ int LightFrameAreaEvent(HWND hWnd, LPARAM lParam)
 			if (ClickMsg == 1)
 			{
 				ClickMsg = 0;
-				DeleteFile(L"newVer");
+				DoClean();
 				DestroyWindow(hWnd);
 				PostQuitMessage(0);
 			}
@@ -357,12 +388,20 @@ int LightFrameAreaEvent(HWND hWnd, LPARAM lParam)
 	if (PanelID == L"Panel2")
 	{
 		RECT rc = {};
-		if ((isUpdateFailed || isUpdateSuccess) && (GetAreaPtInfo(hWnd, winrc.right - 170, winrc.bottom - 80, 150, 40, rc, lParam)) == 1)
+		if (GetAreaPtInfo(hWnd, winrc.right - 170, winrc.bottom - 80, 150, 40, rc, lParam) == 1)
 		{
 			if (ClickMsg == 1)
 			{
-				ClickMsg = 0;
-				PostQuitMessage(0);
+				if (isUpdateFailed || isUpdateSuccess) {
+					ClickMsg = 0;
+					PostQuitMessage(0);
+				}
+				else {
+					ClickMsg = 0;
+					UserCancel = true;
+					strcpy(CurrentTask, "等待线程退出...");
+					SwitchPanel(L"Panel2");
+				}
 			}
 			if (hState == 0)
 			{
@@ -438,7 +477,7 @@ void Panel1(HWND hWnd, HDC hdc)
 	}
 	TextPreDrawEx(hdc, 40, 120, 220, 24, L"最新版本(Total Build) :", 20, 0, VERTEXUICOLOR_WHITE);
 	TextPreDrawA(hdc, 240, 120, 200, 24, NewVer, VERTEXUICOLOR_WHITE);
-	TextPreDrawA(hdc, 10, 170, 200, 190, "Installer:v0.1.1.7", RGB(100, 100, 100));
+	TextPreDrawA(hdc, 10, 170, 200, 190, "Installer:v0.1.1.9-α", RGB(100, 100, 100));
 	CreateRect(hWnd, hdc, 0, 0, rc.right, 40, VERTEXUICOLOR_GREENDEEPSEA);
 	PanelDrawCloseBtn(hWnd, hdc, rc.right - 40, 0, 40, 40, 12, RGB(244, 244, 244));
 	PanelDrawOutFrame(hWnd, hdc, VERTEXUICOLOR_DARKENX);
@@ -454,7 +493,7 @@ void Panel2(HWND hWnd, HDC hdc)
 	sprintf_s(TargetProg, (isNewInstall ? "%d/3" : "%d/6"), TaskProgress);
 	TextPreDrawEx(hdc, 40, 120, 220, 24, L"进度:", 20, 0, VERTEXUICOLOR_WHITE);
 	TextPreDrawA(hdc, 180, 120, 300, 24, TargetProg, VERTEXUICOLOR_WHITE);
-	if (isUpdateFailed || isUpdateSuccess)CreateSimpleButton(hWnd, hdc, rc.right - 170, rc.bottom - 80, 150, 40, L"完成");
+	CreateSimpleButton(hWnd, hdc, rc.right - 170, rc.bottom - 80, 150, 40, (isUpdateFailed || isUpdateSuccess ? L"完成" : L"取消"));
 }
 LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
@@ -470,7 +509,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		//GetMemoryVer();
 
 		TCHAR bufferURL[64];
-		_stprintf_s(bufferURL, L"%s/buildver?skq=%d", MirrorURL, GetTickCount64());
+		_stprintf_s(bufferURL, L"%s/buildver?skq=%d", MirrorURL, (int)GetTickCount64());
 
 		HRESULT ret = URLDownloadToFile(NULL, bufferURL, L"newVer", 0, NULL);
 		if (ret != S_OK) {
@@ -591,7 +630,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	}
 	return 0;
 }
-
 // “关于”框的消息处理程序。
 INT_PTR CALLBACK About(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
 {
