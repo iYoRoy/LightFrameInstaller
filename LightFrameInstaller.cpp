@@ -38,7 +38,7 @@ bool isUpdateFailed = false, isUpdateSuccess = false;
 bool isNewInstall = false;
 bool UserCancel = false;
 HANDLE hUpdateThread, hWatchDog;
-LPCWSTR MirrorURL = L"http://res.iyoroy.top/lightframe/release";
+LPCWSTR MirrorURL = L"https://res.iyoroy.top/lightframe/release";
 
 enum USER_MESSAGES {
 	
@@ -247,10 +247,8 @@ DWORD WINAPI WatchDog(LPVOID lpParam) {//防止UpdateThread卡死
 	} while (TaskHistory != TaskProgress);
 	isUpdateFailed = true;
 	TerminateThread(hUpdateThread, -1);
-	if (!UserCancel) {
-		strcpy(CurrentTask, "升级失败：WATCHDOG TIMEOUT");
-		GoPage2();
-	}
+	strcpy(CurrentTask, (UserCancel ? "用户取消" : "升级失败：WATCHDOG TIMEOUT"));
+	GoPage2();
 	return -1;
 }
 DWORD WINAPI UpdateThread(LPVOID lpParam) {
@@ -261,7 +259,6 @@ DWORD WINAPI UpdateThread(LPVOID lpParam) {
 	TaskProgress = 1;
 	TCHAR bufferURL[128];
 	HRESULT hrDl;
-//	while (1);
 	_stprintf_s(bufferURL, L"%s/LightFrame.exe?skq=%d", MirrorURL, (int)GetTickCount64());
 	hrDl = URLDownloadToFile(NULL, bufferURL, (isNewInstall ? L"LightFrame.exe" : L"LightFrame.ex_"), 0, NULL);
 	if (hrDl != S_OK) {
